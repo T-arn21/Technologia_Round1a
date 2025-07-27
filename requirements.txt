@@ -1,0 +1,6 @@
+pymupdf==1.23.21
+numpy
+pandas
+scikit-learn
+easyocr==1.7.1
+huggingface-hub
