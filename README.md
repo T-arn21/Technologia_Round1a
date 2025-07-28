@@ -28,8 +28,7 @@ To classify text boxes into headings:
 - We use **box height** and **average Y coordinate** as features.
 - Larger boxes higher on the page are likely to be `H1`, followed by `H2` and `H3`.
 
-### 4. **Multithreaded File
- Processing**
+### 4. **Multithreaded File Processing**
 - We use **thread pools** (`ThreadPoolExecutor`) to process multiple PDF files in parallel.
 - This improves throughput significantly while staying within the 10-second execution time constraint.
 
