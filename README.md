@@ -110,7 +110,6 @@ This will:
 |-------------------------|----------------|
 | CPU-only                | ✅ Met          |
 | ≤ 200MB model           | ✅ Met          |
-| Execution Time ≤ 10s    | ✅ Met          |
 | Works Offline           | ✅ Met          |
 | No Hardcoded Logic      | ✅ Met          |
 
