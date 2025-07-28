@@ -101,7 +101,6 @@ This will:
 | OCR              | EasyOCR           | Extracts text from image regions    |
 | Parsing Engine   | PyMuPDF (`fitz`)  | Reads and renders PDF pages         |
 | Threading        | ThreadPoolExecutor| Parallel file processing            |
-| Clustering       | KMeans (optional) | For heading level clustering        |
 
 ---
 
@@ -111,7 +110,7 @@ This will:
 |-------------------------|----------------|
 | CPU-only                | ✅ Met          |
 | ≤ 200MB model           | ✅ Met          |
-| Execution Time ≤ 10s    | ✅ Met (for 50-page PDFs) |
+| Execution Time ≤ 10s    | ✅ Met          |
 | Works Offline           | ✅ Met          |
 | No Hardcoded Logic      | ✅ Met          |
 
@@ -119,7 +118,7 @@ This will:
 
 ## 🌐 Multilingual Support
 
-- EasyOCR supports multilingual text recognition.
+- EasyOCR supports multilingual text recognition(Currently the code has English and French support)
 - You can preload languages for faster OCR performance.
 
 ---
@@ -131,15 +130,3 @@ This will:
 
 ---
 
-## 📎 Sample Output
-
-```json
-{
-  "title": "Connecting the Dots",
-  "outline": [
-    { "level": "H1", "text": "Round 1A: Understand Your Document", "page": 1 },
-    { "level": "H2", "text": "Your Mission", "page": 1 },
-    { "level": "H3", "text": "Why This Matters", "page": 2 }
-  ]
-}
-```
