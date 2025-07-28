@@ -8,12 +8,10 @@ import pandas as pd
 import easyocr
 from collections import defaultdict
 import concurrent.futures
+import traceback
 
-# Set environment variable to reduce YOLO verbosity
 os.environ["YOLO_VERBOSE"] = "False"
-
-# Add the project's root directory to the Python path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append('/app')
 
 try:
     from doclayout_yolo.models.yolov10.model import YOLOv10
@@ -21,47 +19,23 @@ except ModuleNotFoundError:
     print("FATAL ERROR: Could not import YOLOv10.")
     sys.exit(1)
 
-# --- Configuration ---
 DPI = 120
 MODEL_PATH = "models/doclayout_yolo.pt"
 SUPPORTED_LANGUAGES = ['en', 'fr']
 
-# --- Global variables for worker processes ---
-# These will be populated by the initializer
-worker_models = {}
-
-def initialize_worker():
-    """Initializer function for each worker process."""
-    print(f"Initializing worker process {os.getpid()}...")
-    worker_models['yolo'] = YOLOv10(MODEL_PATH)
-    worker_models['ocr'] = easyocr.Reader(SUPPORTED_LANGUAGES, gpu=False, verbose=False)
-    print(f"Worker {os.getpid()} initialized successfully.")
-
-# --- Helper Functions (Previously Missing) ---
-
 def extract_title_and_headings(elements):
-    """Extracts the document title and sorts the remaining elements."""
     if not elements:
         return "Untitled Document", []
-
-    # Assume title is the first element on the first page
     page1 = sorted([el for el in elements if el['page'] == 1], key=lambda e: e['y_coord'])
     if not page1:
-        # If no elements on page 1, return all elements sorted
         return "Untitled Document", sorted(elements, key=lambda e: (e['page'], e['y_coord']))
-
     document_title = page1[0]['text']
-    # Create a unique ID for the title element to filter it out
     title_id = (page1[0]['page'], page1[0]['y_coord'])
-    
     remaining_elements = [el for el in elements if (el['page'], el['y_coord']) != title_id]
-    
     sorted_headings = sorted(remaining_elements, key=lambda e: (e['page'], e['y_coord']))
     return document_title, sorted_headings
 
-
 def analyze_and_classify_headings_with_clustering(headings_data, page_height=842):
-    """Analyzes and classifies headings using a scoring and percentile-based approach."""
     if not headings_data:
         return []
 
@@ -71,7 +45,7 @@ def analyze_and_classify_headings_with_clustering(headings_data, page_height=842
     mu_h = df['box_height'].mean()
     sigma_h = df['box_height'].std(ddof=0) or 1.0
     df['height_z'] = (df['box_height'] - mu_h) / sigma_h
-    
+
     df['pos_norm'] = 1 - (df['y_center'] / page_height)
     df['score'] = df['height_z'] + df['pos_norm']
 
@@ -90,19 +64,19 @@ def analyze_and_classify_headings_with_clustering(headings_data, page_height=842
             return 'H4'
 
     df['level'] = [assign_level(i) for i in range(N)]
-    df_sorted = df.sort_values(by=['page', 'y_coord'])
 
+    # ❗️Filter out H4 before returning
+    df = df[df['level'].isin(['H1', 'H2', 'H3'])]
+
+    df_sorted = df.sort_values(by=['page', 'y_coord'])
     return df_sorted[['level', 'text', 'page']].to_dict('records')
 
 
-# --- Core Processing Logic ---
-
 def process_pdf_to_json(pdf_path):
-    """Processes a single PDF using the preloaded models from the worker's global scope."""
-    yolo_model = worker_models['yolo']
-    ocr_reader = worker_models['ocr']
-    
     try:
+        yolo_model = YOLOv10(MODEL_PATH)
+        ocr_reader = easyocr.Reader(SUPPORTED_LANGUAGES, gpu=False, verbose=False)
+
         doc = fitz.open(pdf_path)
         class_names = yolo_model.names
         all_elements = []
@@ -119,7 +93,7 @@ def process_pdf_to_json(pdf_path):
         for page_num, (results, pix) in enumerate(zip(results_batch, page_images_np), 1):
             for box in results.boxes:
                 label = class_names[int(box.cls)]
-                
+
                 is_heading = label in ["title", "list"]
                 if not is_heading and label == "text":
                     box_width = box.xyxy[0][2] - box.xyxy[0][0]
@@ -129,7 +103,7 @@ def process_pdf_to_json(pdf_path):
                 if is_heading:
                     x1, y1, x2, y2 = [int(coord) for coord in box.xyxy[0]]
                     cropped_img = pix[y1:y2, x1:x2]
-                    
+
                     if cropped_img.size > 0:
                         try:
                             text = " ".join(ocr_reader.readtext(cropped_img, detail=0, paragraph=True))
@@ -144,65 +118,56 @@ def process_pdf_to_json(pdf_path):
                                 })
                         except Exception:
                             continue
-        
-        doc.close()
 
+        doc.close()
         title, sorted_elems = extract_title_and_headings(all_elements)
         page_height = page_images[0].height if page_images else 842
         outline = analyze_and_classify_headings_with_clustering(sorted_elems, page_height)
 
         return {'title': title, 'outline': outline}
     except Exception as e:
-        return {'error': str(e), 'file': os.path.basename(pdf_path)}
-
-# --- Batch Processing Driver ---
+        traceback_str = traceback.format_exc()
+        return {'error': f"{str(e)}\n{traceback_str}", 'file': os.path.basename(pdf_path)}
 
 def process_file_worker(pdf_path, output_folder):
-    """Simplified worker function that calls the main processing logic."""
     filename = os.path.basename(pdf_path)
     output_path = os.path.join(output_folder, f"{os.path.splitext(filename)[0]}.json")
     print(f"\n--- Process {os.getpid()} starting on: {filename} ---")
     start_time = time.time()
-    
+
     json_data = process_pdf_to_json(pdf_path)
 
     if 'error' in json_data:
-        print(f"❌ Error processing {filename}: {json_data['error']}")
+        print(f"❌ Error processing {filename}:\n{json_data['error']}")
         return
 
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(json_data, f, indent=2, ensure_ascii=False)
-        
+
     elapsed_time = time.time() - start_time
     print(f"  ✅ Process {os.getpid()} finished {filename}. Saved to: {output_path} (Time: {elapsed_time:.2f}s)")
 
-
 def batch_process_pdfs(input_folder, output_folder):
-    """Uses a ProcessPoolExecutor with an initializer to process all PDFs."""
     os.makedirs(output_folder, exist_ok=True)
     pdf_files = [os.path.join(input_folder, f) for f in os.listdir(input_folder) if f.lower().endswith(".pdf")]
 
-    with concurrent.futures.ProcessPoolExecutor(
-        max_workers=os.cpu_count(),
-        initializer=initialize_worker
-    ) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=min(4, os.cpu_count() or 1)) as executor:
         futures = [executor.submit(process_file_worker, path, output_folder) for path in pdf_files]
         for future in concurrent.futures.as_completed(futures):
             try:
                 future.result()
             except Exception as e:
                 print(f"A worker process task failed: {e}")
+                traceback.print_exc()
 
 if __name__ == "__main__":
     INPUT_FOLDER = "/app/input"
     OUTPUT_FOLDER = "/app/output"
-    
-    print(f"Starting batch processing from '{INPUT_FOLDER}'...")
-    print(f"Creating a pool of up to {os.cpu_count()} worker processes...")
 
+    print(f"Starting batch processing from '{INPUT_FOLDER}'...")
     batch_start_time = time.time()
     batch_process_pdfs(INPUT_FOLDER, OUTPUT_FOLDER)
     total_time = time.time() - batch_start_time
-    
+
     print(f"\n--- Batch processing complete. ---")
     print(f"Total time for all files: {total_time:.2f} seconds.")
