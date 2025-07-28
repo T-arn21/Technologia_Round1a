@@ -124,7 +124,8 @@ This will:
 ---
 ## Format summary
 
-<img width="915" height="3839" alt="Untitled diagram _ Mermaid Chart-2025-07-28-063121" src="https://github.com/user-attachments/assets/e238fd96-89f4-48ce-8459-431aeb9449df" />
+<img width="900" height="3800" alt="Untitled diagram _ Mermaid Chart-2025-07-28-063819" src="https://github.com/user-attachments/assets/91d51a00-d336-4167-9325-86df914e89b7" />
+
 
 ## ✍️ Final Notes
 
