@@ -69,16 +69,20 @@ docker build --platform linux/amd64 -t pdf-outline-extractor:latest .
 
 ```
 project/
+├── .EasyOCR/
+│   └── model/
+├── doclayout_yolo/
+├── models/
 ├── input/
 │   ├── document1.pdf
 │   └── document2.pdf
 ├── output/
-│   └── (Generated JSON files will be saved here)
+│   └── 
 ├── Dockerfile
 ├── main.py
-├── models/
 ├── README.md
 └── requirements.txt
+
 ```
 
 ### ▶️ Run the Container
