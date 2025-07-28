@@ -4,3 +4,7 @@ pandas
 scikit-learn
 easyocr==1.7.1
 huggingface-hub
+torch
+opencv-python
+yolov10
+ultralytics
